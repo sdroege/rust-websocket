@@ -69,10 +69,13 @@ where
 pub mod r#async {
 	pub use super::ReadWritePair;
 	use futures::Poll;
+	use futures::task;
+	use std::pin::Pin;
+	use std::marker::Unpin;
 	use std::io::{self, Read, Write};
-	pub use tokio_io::io::{ReadHalf, WriteHalf};
-	pub use tokio_io::{AsyncRead, AsyncWrite};
-	pub use tokio_tcp::TcpStream;
+	pub use tokio::net::tcp::split::{ReadHalf, WriteHalf};
+	pub use tokio::io::{AsyncRead, AsyncWrite};
+	pub use tokio::net::tcp::TcpStream;
 
 	/// A stream that can be read from and written to asynchronously.
 	/// This let's us abstract over many async streams like tcp, ssl,
@@ -82,18 +85,27 @@ pub mod r#async {
 
 	impl<R, W> AsyncRead for ReadWritePair<R, W>
 	where
-		R: AsyncRead,
-		W: Write,
+		R: Read + AsyncRead + Unpin,
+		W: Write + Unpin,
 	{
+		fn poll_read(self: Pin<&mut Self>, ctx: &mut task::Context, buf: &mut [u8]) -> Poll<Result<usize, io::Error>> {
+			Pin::new(&mut self.get_mut().0).poll_read(ctx, buf)
+		}
 	}
 
-	impl<R, W> AsyncWrite for ReadWritePair<R, W>
+	impl<R, W: AsyncWrite> AsyncWrite for ReadWritePair<R, W>
 	where
-		W: AsyncWrite,
-		R: Read,
+		W: Write + AsyncWrite + Unpin,
+		R: Read + Unpin,
 	{
-		fn shutdown(&mut self) -> Poll<(), io::Error> {
-			self.1.shutdown()
+		fn poll_write(self: Pin<&mut Self>, ctx: &mut task::Context, buf: &[u8]) -> Poll<Result<usize, io::Error>> {
+			Pin::new(&mut self.get_mut().1).poll_write(ctx, buf)
+		}
+		fn poll_flush(self: Pin<&mut Self>, ctx: &mut task::Context) -> Poll<Result<(), io::Error>> {
+			Pin::new(&mut self.get_mut().1).poll_flush(ctx)
+		}
+		fn poll_shutdown(self: Pin<&mut Self>, ctx: &mut task::Context) -> Poll<Result<(), io::Error>> {
+			Pin::new(&mut self.get_mut().1).poll_shutdown(ctx)
 		}
 	}
 }

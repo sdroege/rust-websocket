@@ -8,7 +8,6 @@
 //! dataframes see the documentation for `DataFrameCodec`
 
 extern crate bytes;
-extern crate tokio_codec;
 
 use std::borrow::Borrow;
 use std::io::Cursor;
@@ -17,8 +16,8 @@ use std::mem;
 
 use self::bytes::BufMut;
 use self::bytes::BytesMut;
-use self::tokio_codec::Decoder;
-use self::tokio_codec::Encoder;
+use tokio_util::codec::Decoder;
+use tokio_util::codec::Encoder;
 
 use crate::dataframe::DataFrame;
 use crate::message::OwnedMessage;
@@ -304,7 +303,7 @@ where
 mod tests {
 	extern crate tokio;
 	use super::*;
-	use futures::{Future, Sink, Stream};
+	use futures::prelude::*;
 	use crate::message::CloseData;
 	use crate::message::Message;
 	use std::io::Cursor;
@@ -377,12 +376,15 @@ mod tests {
 		let f = MessageCodec::new(Context::Client)
 			.framed(ReadWritePair(Cursor::new(input), Cursor::new(vec![])))
 			.into_future()
-			.map_err(|e| e.0)
+			.map(|(m, s)| (m.expect("Empty stream"), s))
 			.map(|(m, s)| {
-				assert_eq!(m, Some(OwnedMessage::Text("50 schmeckels".to_string())));
+				assert_eq!(m.expect("Error on first stream item"), OwnedMessage::Text("50 schmeckels".to_string()));
 				s
 			})
-			.and_then(|s| s.send(Message::text("ethan bradberry")))
+			.then(|mut s| async {
+				let res = s.send(Message::text("ethan bradberry")).await;
+				res.map(|_| s)
+			})
 			.and_then(|s| {
 				let mut stream = s.into_parts().io;
 				stream.1.set_position(0);
@@ -390,9 +392,10 @@ mod tests {
 				MessageCodec::default(Context::Server)
 					.framed(ReadWritePair(stream.1, stream.0))
 					.into_future()
-					.map_err(|e| e.0)
+					.map(|(m, s)| (m.expect("Empty stream"), s))
 					.map(|(message, _)| {
-						assert_eq!(message, Some(Message::text("ethan bradberry").into()))
+						assert_eq!(message.expect("Error on second stream item"), Message::text("ethan bradberry").into());
+						Ok(())
 					})
 			});
 
@@ -414,13 +417,16 @@ mod tests {
 		let f = MessageCodec::new(Context::Server)
 			.framed(ReadWritePair(Cursor::new(input), Cursor::new(vec![])))
 			.into_future()
-			.map_err(|e| e.0)
+			.map(|(m, s)| (m.expect("Empty stream"), s))
 			.map(|(m, s)| {
-				assert_eq!(m, Some(OwnedMessage::Text("50 schmeckels".to_string())));
+				assert_eq!(m.expect("Error on first stream item"), OwnedMessage::Text("50 schmeckels".to_string()));
 				s
 			})
-			.and_then(|s| s.send(Message::text("ethan bradberry")))
-			.map(|s| {
+			.then(|mut s| async {
+				let res = s.send(Message::text("ethan bradberry")).await;
+				res.map(|_| s)
+			})
+			.map_ok(|s| {
 				let mut written = vec![];
 				Message::text("ethan bradberry")
 					.serialize(&mut written, false)
