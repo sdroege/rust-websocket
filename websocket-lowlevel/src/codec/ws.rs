@@ -182,18 +182,19 @@ where
 ///# fn main() {
 ///
 ///let mut runtime = tokio::runtime::Builder::new().build().unwrap();
-///let mut input = Vec::new();
-///Message::text("50 schmeckels").serialize(&mut input, false);
 ///
-///let f = MessageCodec::default(MsgCodecCtx::Client)
-///    .framed(ReadWritePair(Cursor::new(input), Cursor::new(vec![])))
-///    .into_future()
-///    .map_err(|e| e.0)
-///    .map(|(m, _)| {
-///        assert_eq!(m, Some(OwnedMessage::Text("50 schmeckels".to_string())));
-///    });
+///let f = async {
+///    let mut input = Vec::new();
+///    Message::text("50 schmeckels").serialize(&mut input, false);
 ///
-///runtime.block_on(f).unwrap();
+///    let framed = MessageCodec::default(MsgCodecCtx::Client)
+///                     .framed(ReadWritePair(Cursor::new(input), Cursor::new(vec![])))
+///    let (m, _s) = framed.into_future().await;
+///    let m = m.expect("Empty stream");
+///    assert_eq!(m.expect("Error receiving message"), OwnedMessage::Text("50 schmeckels".to_string()));
+///};
+///
+///runtime.block_on(f)
 ///# }
 pub struct MessageCodec<M>
 where
@@ -368,72 +369,63 @@ mod tests {
 
 	#[test]
 	fn message_codec_client_send_receive() {
-		let mut input = Vec::new();
-		Message::text("50 schmeckels")
-			.serialize(&mut input, false)
-			.unwrap();
+		let f = async {
+			let mut input = Vec::new();
+			Message::text("50 schmeckels")
+				.serialize(&mut input, false)
+				.unwrap();
 
-		let f = MessageCodec::new(Context::Client)
-			.framed(ReadWritePair(Cursor::new(input), Cursor::new(vec![])))
-			.into_future()
-			.map(|(m, s)| (m.expect("Empty stream"), s))
-			.map(|(m, s)| {
-				assert_eq!(m.expect("Error on first stream item"), OwnedMessage::Text("50 schmeckels".to_string()));
-				s
-			})
-			.then(|mut s| async {
-				let res = s.send(Message::text("ethan bradberry")).await;
-				res.map(|_| s)
-			})
-			.and_then(|s| {
-				let mut stream = s.into_parts().io;
-				stream.1.set_position(0);
-				println!("buffer: {:?}", stream.1);
-				MessageCodec::default(Context::Server)
-					.framed(ReadWritePair(stream.1, stream.0))
-					.into_future()
-					.map(|(m, s)| (m.expect("Empty stream"), s))
-					.map(|(message, _)| {
-						assert_eq!(message.expect("Error on second stream item"), Message::text("ethan bradberry").into());
-						Ok(())
-					})
-			});
+			let framed = MessageCodec::new(Context::Client)
+				.framed(ReadWritePair(Cursor::new(input), Cursor::new(vec![])));
+			let (m, mut s) = framed.into_future().await;
+			let m = m.expect("Empty stream");
+			assert_eq!(m.expect("Error receiving message"), OwnedMessage::Text("50 schmeckels".to_string()));
+
+			let res = s.send(Message::text("ethan bradberry")).await;
+			res.expect("Failed to send text");
+			let mut stream = s.into_parts().io;
+			stream.1.set_position(0);
+			println!("buffer: {:?}", stream.1);
+
+			let framed = MessageCodec::default(Context::Server)
+				.framed(ReadWritePair(stream.1, stream.0));
+			let (m, _s) = framed.into_future().await;
+			let m = m.expect("Empty stream");
+			assert_eq!(m.expect("Error receiving message"), OwnedMessage::Text("ethan bradberry".to_string()));
+		};
 
 		tokio::runtime::Builder::new()
 			.build()
 			.unwrap()
-			.block_on(f)
-			.unwrap();
+			.block_on(f);
 	}
 
 	#[test]
 	fn message_codec_server_send_receive() {
 		let mut runtime = tokio::runtime::Builder::new().build().unwrap();
-		let mut input = Vec::new();
-		Message::text("50 schmeckels")
-			.serialize(&mut input, true)
-			.unwrap();
 
-		let f = MessageCodec::new(Context::Server)
-			.framed(ReadWritePair(Cursor::new(input), Cursor::new(vec![])))
-			.into_future()
-			.map(|(m, s)| (m.expect("Empty stream"), s))
-			.map(|(m, s)| {
-				assert_eq!(m.expect("Error on first stream item"), OwnedMessage::Text("50 schmeckels".to_string()));
-				s
-			})
-			.then(|mut s| async {
-				let res = s.send(Message::text("ethan bradberry")).await;
-				res.map(|_| s)
-			})
-			.map_ok(|s| {
-				let mut written = vec![];
-				Message::text("ethan bradberry")
-					.serialize(&mut written, false)
-					.unwrap();
-				assert_eq!(written, s.into_parts().io.1.into_inner());
-			});
+		let f = async {
+			let mut input = Vec::new();
+			Message::text("50 schmeckels")
+				.serialize(&mut input, true)
+				.unwrap();
 
-		runtime.block_on(f).unwrap();
+			let framed = MessageCodec::new(Context::Server)
+				.framed(ReadWritePair(Cursor::new(input), Cursor::new(vec![])));
+			let (m, mut s) = framed.into_future().await;
+			let m = m.expect("Empty stream");
+			assert_eq!(m.expect("Error receiving message"), OwnedMessage::Text("50 schmeckels".to_string()));
+
+			let res = s.send(Message::text("ethan bradberry")).await;
+			res.expect("Failed to send text");
+
+			let mut written = vec![];
+			Message::text("ethan bradberry")
+				.serialize(&mut written, false)
+				.unwrap();
+			assert_eq!(written, s.into_parts().io.1.into_inner());
+		};
+
+		runtime.block_on(f);
 	}
 }
