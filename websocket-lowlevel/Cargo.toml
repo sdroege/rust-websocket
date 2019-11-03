@@ -24,9 +24,7 @@ base64 = "0.11"
 sha1 = "0.6"
 bytes = { version = "0.4", optional = true }
 futures-preview = { version = "0.3.0-alpha.19", optional = true }
-native-tls = { version = "0.2.1", optional = true }
 tokio = { git = "https://github.com/tokio-rs/tokio.git", optional = true }
-tokio-tls = { git = "https://github.com/tokio-rs/tokio.git", optional = true }
 tokio-util = { git = "https://github.com/tokio-rs/tokio.git", optional = true }
 
 [dev-dependencies.tokio]
@@ -35,8 +33,6 @@ git = "https://github.com/tokio-rs/tokio.git"
 features = ["io", "tcp", "rt-full"]
 
 [features]
-default = ["sync", "async", "sync-ssl", "async-ssl"]
+default = ["sync", "async"]
 sync = []
-sync-ssl = ["native-tls", "sync"]
 async = ["tokio", "tokio-util", "bytes", "futures-preview"]
-async-ssl = ["native-tls", "tokio-tls", "async"]
