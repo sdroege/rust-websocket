@@ -16,8 +16,8 @@ use std::mem;
 
 use self::bytes::BufMut;
 use self::bytes::BytesMut;
-use tokio_util::codec::Decoder;
-use tokio_util::codec::Encoder;
+use tokio::codec::Decoder;
+use tokio::codec::Encoder;
 
 use crate::dataframe::DataFrame;
 use crate::message::OwnedMessage;

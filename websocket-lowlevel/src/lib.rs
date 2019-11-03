@@ -14,8 +14,6 @@ extern crate bitflags;
 
 #[cfg(feature = "async")]
 extern crate tokio;
-#[cfg(feature = "async")]
-extern crate tokio_util;
 
 pub mod codec;
 pub mod dataframe;
