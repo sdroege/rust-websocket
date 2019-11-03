@@ -13,6 +13,8 @@ categories = ["asynchronous", "network-programming", "web-programming", "web-pro
 
 license = "MIT"
 
+edition = "2018"
+
 
 [dependencies]
 byteorder = "1.0"
