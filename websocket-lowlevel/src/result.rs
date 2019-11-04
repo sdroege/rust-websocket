@@ -59,11 +59,11 @@ impl Error for WebSocketError {
 		}
 	}
 
-	fn cause(&self) -> Option<&dyn Error> {
+	fn source(&self) -> Option<&(dyn Error + 'static)> {
 		match *self {
 			WebSocketError::IoError(ref error) => Some(error),
 			WebSocketError::Utf8Error(ref error) => Some(error),
-			WebSocketError::Other(ref error) => error.cause(),
+			WebSocketError::Other(ref error) => Some(error.as_ref()),
 			_ => None,
 		}
 	}
