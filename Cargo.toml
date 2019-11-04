@@ -48,5 +48,6 @@ nightly = ["hyper/nightly"]
 
 [workspace]
 members = [
-    "websocket-lowlevel"
+    "websocket-lowlevel",
+    "websocket-hyper",
 ]

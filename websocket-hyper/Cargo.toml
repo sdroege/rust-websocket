@@ -1,0 +1,21 @@
+[package]
+name = "websocket-hyper"
+version = "0.1.0"
+authors = ["Sebastian Dröge <sebastian@centricular.com>"]
+edition = "2018"
+description = "A WebSocket (RFC6455) library for Rust: Hyper-based high-level API"
+documentation = "https://docs.rs/websocket-lowlevel/"
+repository = "https://github.com/websockets-rs/rust-websocket"
+keywords = ["websocket", "websockets", "rfc6455", "async", "tokio"]
+categories = ["asynchronous", "network-programming", "web-programming", "web-programming::websocket"]
+license = "MIT"
+
+[dependencies]
+websocket-lowlevel = { path = "../websocket-lowlevel", default-features = false, features = ["async"] }
+futures-preview = { version = "0.3.0-alpha.19" }
+tokio = { version = "0.2.0-alpha.6" }
+tokio-io = { version = "0.2.0-alpha.6" }
+hyper = { version = "0.13.0-alpha.4" }
+hyper-tls = { version = "0.4.0-alpha.4" }
+lazy_static = "1.0"
+http = "0.1"
